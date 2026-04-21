@@ -11,25 +11,23 @@ def home():
     <head>
         <title>Job Board Zambia</title>
         <style>
-            body {
-                font-family: Arial;
-                background: #f4f6f9;
-                margin: 0;
-            }
+            body { font-family: Arial; background: #f4f6f9; margin: 0; }
             header {
-                background: #007bff;
+                background: #0d6efd;
                 color: white;
                 padding: 15px;
-                text-align: center;
-                font-size: 24px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
             }
-            .container {
-                padding: 20px;
+            .logo {
+                font-size: 22px;
+                font-weight: bold;
             }
+            .container { padding: 20px; }
             .btn {
-                display: inline-block;
                 padding: 10px 15px;
-                background: #28a745;
+                background: #198754;
                 color: white;
                 text-decoration: none;
                 border-radius: 5px;
@@ -45,21 +43,19 @@ def home():
     </head>
     <body>
 
-    <header>Job Board Zambia</header>
+    <header>
+        <div class="logo">🚚 Job Board Zambia</div>
+        <a class="btn" href="/post">Post Job</a>
+    </header>
 
     <div class="container">
-        <a class="btn" href="/post">+ Post a Job</a>
         <h2>Available Jobs</h2>
     """
 
     for job in jobs:
-        html += f"<div class='job'>{job}</div>"
+        html += f"<div class='job'>📌 {job}</div>"
 
-    html += """
-    </div>
-    </body>
-    </html>
-    """
+    html += "</div></body></html>"
     return html
 
 @app.route("/post", methods=["GET","POST"])
@@ -70,7 +66,7 @@ def post():
     return """
     <h2>Post Job</h2>
     <form method="post">
-    <input name="title" placeholder="Enter job details" style="width:300px"><br><br>
+    <input name="title" placeholder="Enter job details"><br><br>
     <button>Post</button>
     </form>
     """
