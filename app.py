@@ -1,13 +1,28 @@
 from flask import Flask, request, redirect
+from flask_sqlalchemy import SQLAlchemy
+import os
 
 app = Flask(__name__)
 
-jobs = []
+# Database setup
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.getcwd(), 'jobs.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+
+# Table (Model)
+class Job(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200))
+    location = db.Column(db.String(100))
+
+# Create database
+with app.app_context():
+    db.create_all()
 
 @app.route("/")
 def home():
-    search = request.args.get("search", "").lower()
-    location = request.args.get("location", "").lower()
+    jobs = Job.query.order_by(Job.id.desc()).all()
 
     html = """
     <html>
@@ -36,10 +51,6 @@ def home():
                 margin-top: 10px;
                 border-radius: 8px;
             }
-            input, select {
-                padding: 8px;
-                margin: 5px;
-            }
         </style>
     </head>
     <body>
@@ -50,29 +61,11 @@ def home():
     </header>
 
     <div class="container">
-
-    <h2>Search Jobs</h2>
-
-    <form method="get">
-        <input name="search" placeholder="Search job..." />
-        <select name="location">
-            <option value="">All Locations</option>
-            <option value="kitwe">Kitwe</option>
-            <option value="lusaka">Lusaka</option>
-        </select>
-        <button>Search</button>
-    </form>
-
     <h2>Available Jobs</h2>
     """
 
-    # Show latest jobs first
-    for job in reversed(jobs):
-        title = job["title"].lower()
-        loc = job["location"].lower()
-
-        if search in title and (location == "" or location == loc):
-            html += f"<div class='job'>📌 {job['title']} - {job['location']}</div>"
+    for job in jobs:
+        html += f"<div class='job'>📌 {job.title} - {job.location}</div>"
 
     html += "</div></body></html>"
     return html
@@ -81,10 +74,12 @@ def home():
 @app.route("/post", methods=["GET","POST"])
 def post():
     if request.method == "POST":
-        jobs.append({
-            "title": request.form["title"],
-            "location": request.form["location"]
-        })
+        new_job = Job(
+            title=request.form["title"],
+            location=request.form["location"]
+        )
+        db.session.add(new_job)
+        db.session.commit()
         return redirect("/")
 
     return """
@@ -100,7 +95,6 @@ def post():
     <button>Post</button>
     </form>
     """
-
 
 if __name__ == "__main__":
     app.run()
