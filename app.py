@@ -59,7 +59,7 @@ def home():
 @app.route("/register", methods=["GET","POST"])
 def register():
     if request.method == "POST":
-        user = User(username=request.form["username"], password=request.form["password"])
+        user = User(username=request.form["username"], password=generate_password_hash(request.form["password"])
         db.session.add(user)
         db.session.commit()
         return redirect("/login")
