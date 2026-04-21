@@ -6,6 +6,9 @@ jobs = []
 
 @app.route("/")
 def home():
+    search = request.args.get("search", "").lower()
+    location = request.args.get("location", "").lower()
+
     html = """
     <html>
     <head>
@@ -17,12 +20,7 @@ def home():
                 color: white;
                 padding: 15px;
                 display: flex;
-                align-items: center;
                 justify-content: space-between;
-            }
-            .logo {
-                font-size: 22px;
-                font-weight: bold;
             }
             .container { padding: 20px; }
             .btn {
@@ -37,39 +35,72 @@ def home():
                 padding: 15px;
                 margin-top: 10px;
                 border-radius: 8px;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            }
+            input, select {
+                padding: 8px;
+                margin: 5px;
             }
         </style>
     </head>
     <body>
 
     <header>
-        <div class="logo">🚚 Job Board Zambia</div>
+        <div>🚚 Job Board Zambia</div>
         <a class="btn" href="/post">Post Job</a>
     </header>
 
     <div class="container">
-        <h2>Available Jobs</h2>
+
+    <h2>Search Jobs</h2>
+
+    <form method="get">
+        <input name="search" placeholder="Search job..." />
+        <select name="location">
+            <option value="">All Locations</option>
+            <option value="kitwe">Kitwe</option>
+            <option value="lusaka">Lusaka</option>
+        </select>
+        <button>Search</button>
+    </form>
+
+    <h2>Available Jobs</h2>
     """
 
-    for job in jobs:
-        html += f"<div class='job'>📌 {job}</div>"
+    # Show latest jobs first
+    for job in reversed(jobs):
+        title = job["title"].lower()
+        loc = job["location"].lower()
+
+        if search in title and (location == "" or location == loc):
+            html += f"<div class='job'>📌 {job['title']} - {job['location']}</div>"
 
     html += "</div></body></html>"
     return html
 
+
 @app.route("/post", methods=["GET","POST"])
 def post():
     if request.method == "POST":
-        jobs.append(request.form["title"])
+        jobs.append({
+            "title": request.form["title"],
+            "location": request.form["location"]
+        })
         return redirect("/")
+
     return """
     <h2>Post Job</h2>
     <form method="post">
-    <input name="title" placeholder="Enter job details"><br><br>
+    <input name="title" placeholder="Job title"><br><br>
+
+    <select name="location">
+        <option value="Kitwe">Kitwe</option>
+        <option value="Lusaka">Lusaka</option>
+    </select><br><br>
+
     <button>Post</button>
     </form>
     """
+
 
 if __name__ == "__main__":
     app.run()
