@@ -43,10 +43,13 @@ def home():
     </head>
     <body>
 
-    <header>
-        <div class="logo">🚚 Job Board Zambia</div>
-        <a class="btn" href="/post">Post Job</a>
-    </header>
+    HTML
+</header>  
+
+<img src="https://images.unsplash.com/photo-1581091870622-6c4b6c6a6a2c"
+style="width:100%; height:200px; object-fit:cover;">
+
+<div class="container">
 
     <div class="container">
         <h2>Available Jobs</h2>
