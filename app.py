@@ -1,4 +1,91 @@
-style>
+from flask import Flask, request, redirect
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+import os
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'secret123'
+
+# DATABASE
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.getcwd(), 'jobs.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
+# LOGIN
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"
+
+# MODELS
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(100), unique=True)
+    password = db.Column(db.String(200))
+
+class Job(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200))
+    location = db.Column(db.String(100))
+    user_id = db.Column(db.Integer)
+
+# 🔥 RESET DATABASE (temporary fix)
+with app.app_context():
+    db.drop_all()
+    db.create_all()
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+# HOME
+@app.route("/")
+def home():
+    search = request.args.get("search", "").lower()
+    location = request.args.get("location", "")
+
+    jobs = Job.query.order_by(Job.id.desc()).all()
+
+    html = """
+    <html>
+    <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Board Zambia</title>
+
+    <style>
+    body { font-family: Arial; background: #eef1f5; margin: 0; }
+
+    header {
+        background: #0d6efd;
+        color: white;
+        padding: 12px;
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .container { padding: 15px; }
+
+    input, select, button {
+        width: 100%;
+        padding: 12px;
+        margin-top: 10px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+    }
+
+    button {
+        background: #198754;
+        color: white;
+        border: none;
+    }
+
+    .job {
+        background: white;
+        padding: 15px;
+        margin-top: 15px;
+        border-radius: 10px;
+    }
+    </style>
 
     </head>
     <body>
@@ -31,7 +118,12 @@ style>
 
     for job in jobs:
         if (search in job.title.lower()) and (location == "" or location == job.location):
-            html += f"<div class='job'>📌 {job.title} - {job.location}</div>"
+            html += f"""
+            <div class='job'>
+            <strong>{job.title}</strong><br>
+            📍 {job.location}
+            </div>
+            """
 
     html += "</div></body></html>"
     return html
@@ -112,3 +204,9 @@ def post():
     </select>
 
     <button>Post</button>
+    </form>
+    """
+
+
+if __name__ == "__main__":
+    app.run()
