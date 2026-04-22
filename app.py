@@ -1,3 +1,4 @@
+
 from flask import Flask, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -7,15 +8,17 @@ import os
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret123'
 
+# DATABASE
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.getcwd(), 'jobs.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
 db = SQLAlchemy(app)
 
+# LOGIN
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 
+# MODELS
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True)
@@ -27,6 +30,7 @@ class Job(db.Model):
     location = db.Column(db.String(100))
     user_id = db.Column(db.Integer)
 
+# CREATE DB
 with app.app_context():
     db.create_all()
 
@@ -34,6 +38,7 @@ with app.app_context():
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+# HOME
 @app.route("/")
 def home():
     search = request.args.get("search", "").lower()
@@ -80,17 +85,24 @@ def home():
         margin-top: 15px;
         border-radius: 10px;
     }
+
+    h2 {
+        margin-top: 20px;
+    }
     </style>
 
     </head>
     <body>
 
     <header>
-        <div>🚚 Job Board Zambia</div>
+        <div style="font-weight:bold;">🚚 Job Board Zambia</div>
         <a href="/post" style="color:white;">Post Job</a>
     </header>
 
     <div class="container">
+
+    <h2>Find Jobs Across Zambia 🇿🇲</h2>
+    <p>Search and apply for jobs in Kitwe, Lusaka and beyond.</p>
 
     <form method="get">
         <input name="search" placeholder="Search job..." />
@@ -105,6 +117,9 @@ def home():
     <h2>Available Jobs</h2>
     """
 
+    if not jobs:
+        html += "<p>No jobs posted yet. Be the first to post one!</p>"
+
     for job in jobs:
         if (search in job.title.lower()) and (location == "" or location == job.location):
             html += f"<div class='job'>📌 {job.title} - {job.location}</div>"
@@ -113,6 +128,7 @@ def home():
     return html
 
 
+# REGISTER
 @app.route("/register", methods=["GET","POST"])
 def register():
     if request.method == "POST":
@@ -134,6 +150,7 @@ def register():
     """
 
 
+# LOGIN
 @app.route("/login", methods=["GET","POST"])
 def login():
     if request.method == "POST":
@@ -153,6 +170,7 @@ def login():
     """
 
 
+# LOGOUT
 @app.route("/logout")
 @login_required
 def logout():
@@ -160,6 +178,7 @@ def logout():
     return redirect("/")
 
 
+# POST JOB
 @app.route("/post", methods=["GET","POST"])
 @login_required
 def post():
