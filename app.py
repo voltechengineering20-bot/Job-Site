@@ -4,7 +4,6 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 
-# ✅ APP FIRST (fixes "app not defined")
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret123'
 
@@ -30,7 +29,6 @@ class Job(db.Model):
     location = db.Column(db.String(100))
     user_id = db.Column(db.Integer)
 
-# CREATE DATABASE
 with app.app_context():
     db.create_all()
 
@@ -38,10 +36,14 @@ with app.app_context():
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# HOME PAGE
+
+# HOME (with search + filter)
 @app.route("/")
 def home():
-    jobs = Job.query.all()
+    search = request.args.get("search", "").lower()
+    location = request.args.get("location", "")
+
+    jobs = Job.query.order_by(Job.id.desc()).all()
 
     html = """
     <html>
@@ -62,6 +64,25 @@ def home():
 
     .container { padding: 15px; }
 
+    .nav a {
+        color: white;
+        margin-left: 10px;
+        text-decoration: none;
+    }
+
+    input, select, button {
+        width: 100%;
+        padding: 10px;
+        margin-top: 10px;
+        border-radius: 5px;
+    }
+
+    button {
+        background: #198754;
+        color: white;
+        border: none;
+    }
+
     .job {
         background: white;
         padding: 15px;
@@ -69,36 +90,70 @@ def home():
         border-radius: 10px;
     }
     </style>
-
     </head>
+
     <body>
 
     <header>
-        <div>🚚 Job Board Zambia</div>
-        <div>
-            <a href="/register" style="color:white;">Register</a> |
-            <a href="/login" style="color:white;">Login</a> |
-            <a href="/post" style="color:white;">Post Job</a> |
-            <a href="/logout" style="color:white;">Logout</a>
+        <div><strong>🚚 Job Board Zambia</strong></div>
+        <div class="nav">
+            <a href="/">Home</a>
+            <a href="/post">Post Job</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/logout">Logout</a>
         </div>
     </header>
 
     <div class="container">
+
+    <h2>Find Jobs</h2>
+
+    <form method="get">
+        <input name="search" placeholder="Search jobs..." />
+        <select name="location">
+            <option value="">All Locations</option>
+            <option value="Kitwe">Kitwe</option>
+            <option value="Lusaka">Lusaka</option>
+        </select>
+        <button>Search</button>
+    </form>
+
     <h2>Available Jobs</h2>
     """
 
-    if not jobs:
-        html += "<p>No jobs yet. Post one!</p>"
+    found = False
 
     for job in jobs:
-        html += f"""
-        <div class='job'>
-        <strong>{job.title}</strong><br>
-        📍 {job.location}
-        </div>
-        """
+        if (search in job.title.lower()) and (location == "" or location == job.location):
+            found = True
+            html += f"""
+            <div class='job'>
+            <strong>{job.title}</strong><br>
+            📍 {job.location}
+            </div>
+            """
+
+    if not found:
+        html += "<p>No jobs found.</p>"
 
     html += "</div></body></html>"
+    return html
+
+
+# DASHBOARD
+@app.route("/dashboard")
+@login_required
+def dashboard():
+    jobs = Job.query.filter_by(user_id=current_user.id).all()
+
+    html = "<h2>Your Jobs</h2><a href='/'>Home</a><br><br>"
+
+    if not jobs:
+        html += "<p>You haven't posted any jobs yet.</p>"
+
+    for job in jobs:
+        html += f"<p>{job.title} - {job.location}</p>"
+
     return html
 
 
@@ -106,13 +161,12 @@ def home():
 @app.route("/register", methods=["GET","POST"])
 def register():
     if request.method == "POST":
-        username = request.form["username"]
-        password = generate_password_hash(request.form["password"])
-
-        user = User(username=username, password=password)
+        user = User(
+            username=request.form["username"],
+            password=generate_password_hash(request.form["password"])
+        )
         db.session.add(user)
         db.session.commit()
-
         return redirect("/login")
 
     return """
@@ -129,15 +183,10 @@ def register():
 @app.route("/login", methods=["GET","POST"])
 def login():
     if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
-
-        user = User.query.filter_by(username=username).first()
-
-        if user and check_password_hash(user.password, password):
+        user = User.query.filter_by(username=request.form["username"]).first()
+        if user and check_password_hash(user.password, request.form["password"]):
             login_user(user)
             return redirect("/")
-
         return "Invalid login"
 
     return """
@@ -176,12 +225,14 @@ def post():
     <h2>Post Job</h2>
     <form method="post">
     <input name="title" placeholder="Job title">
-    <input name="location" placeholder="Location">
+    <select name="location">
+        <option value="Kitwe">Kitwe</option>
+        <option value="Lusaka">Lusaka</option>
+    </select>
     <button>Post</button>
     </form>
     """
 
 
-# RUN APP
 if __name__ == "__main__":
     app.run()
