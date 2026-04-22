@@ -1,108 +1,89 @@
+from flask import Flask, request, redirect
+from flask_sqlalchemy import SQLAlchemy
+import os
 
-html = """
-<html>
-<head>
-<title>Job Board Zambia</title>
+app = Flask(__name__)
 
-<style>
-body {
-    font-family: 'Segoe UI', Arial;
-    background: #eef1f5;
-    margin: 0;
-}
+# Database setup
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.getcwd(), 'jobs.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-/* HEADER */
-header {
-    background: #0d6efd;
-    color: white;
-    padding: 15px 25px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
+db = SQLAlchemy(app)
 
-.logo {
-    font-size: 22px;
-    font-weight: bold;
-}
+# Model
+class Job(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200))
+    location = db.Column(db.String(100))
 
-.nav a {
-    color: white;
-    margin-left: 15px;
-    text-decoration: none;
-    font-weight: 500;
-}
+# Create DB
+with app.app_context():
+    db.create_all()
 
-/* CONTAINER */
-.container {
-    padding: 30px;
-    max-width: 800px;
-    margin: auto;
-}
+@app.route("/")
+def home():
+    search = request.args.get("search", "").lower()
+    location = request.args.get("location", "")
 
-/* SEARCH BOX */
-.search-box {
-    background: white;
-    padding: 15px;
-    border-radius: 10px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
+    jobs = Job.query.order_by(Job.id.desc()).all()
 
-input, select {
-    padding: 10px;
-    margin: 5px;
-    width: 30%;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-}
+    html = """
+    <html>
+    <head>
+        <title>Job Board Zambia</title>
+        <style>
+            body { font-family: Arial; background: #f4f6f9; margin: 0; }
+            header {
+                background: #0d6efd;
+                color: white;
+                padding: 15px;
+                display: flex;
+                justify-content: space-between;
+            }
+            .container { padding: 20px; }
+            .btn {
+                padding: 10px 15px;
+                background: #198754;
+                color: white;
+                text-decoration: none;
+                border-radius: 5px;
+            }
+            .job {
+                background: white;
+                padding: 15px;
+                margin-top: 10px;
+                border-radius: 8px;
+            }
+            input, select {
+                padding: 8px;
+                margin: 5px;
+            }
+        </style>
+    </head>
+    <body>
 
-/* BUTTON */
-button {
-    padding: 10px 15px;
-    background: #198754;
-    color: white;
-    border: none;
-    border-radius: 5px;
-}
+    <header>
+        <div>🚚 Job Board Zambia</div>
+        <a class="btn" href="/post">Post Job</a>
+    </header>
 
-/* JOB CARD */
-.job {
-    background: white;
-    padding: 15px;
-    margin-top: 15px;
-    border-radius: 10px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-}
-</style>
+    <div class="container">
 
-</head>
-<body>
+    <h2>Search Jobs</h2>
 
-<header>
-    <div class="logo">🚚 Job Board Zambia</div>
-    <div class="nav">
-        <a href="/">Home</a>
-        <a href="/post">Post Job</a>
-        <a href="/login">Login</a>
-    </div>
-</header>
+    <form method="get">
+        <input name="search" placeholder="Search job..." />
+        <select name="location">
+            <option value="">All Locations</option>
+            <option value="Kitwe">Kitwe</option>
+            <option value="Lusaka">Lusaka</option>
+        </select>
+        <button>Search</button>
+    </form>
 
-<div class="container">
+    <h2>Available Jobs</h2>
+    """
 
-<div class="search-box">
-<form method="get">
-    <input name="search" placeholder="Search job..." />
-    <select name="location">
-        <option value="">All Locations</option>
-        <option value="Kitwe">Kitwe</option>
-        <option value="Lusaka">Lusaka</option>
-    </select>
-    <button>Search</button>
-</form>
-</div>
-
-<h2>Available Jobs</h2>
-"""
     for job in jobs:
         if (search in job.title.lower()) and (location == "" or location == job.location):
             html += f"<div class='job'>📌 {job.title} - {job.location}</div>"
@@ -111,4 +92,31 @@ button {
     return html
 
 
+@app.route("/post", methods=["GET","POST"])
+def post():
+    if request.method == "POST":
+        new_job = Job(
+            title=request.form["title"],
+            location=request.form["location"]
+        )
+        db.session.add(new_job)
+        db.session.commit()
+        return redirect("/")
 
+    return """
+    <h2>Post Job</h2>
+    <form method="post">
+    <input name="title" placeholder="Job title"><br><br>
+
+    <select name="location">
+        <option value="Kitwe">Kitwe</option>
+        <option value="Lusaka">Lusaka</option>
+    </select><br><br>
+
+    <button>Post</button>
+    </form>
+    """
+
+
+if __name__ == "__main__":
+    app.run()
