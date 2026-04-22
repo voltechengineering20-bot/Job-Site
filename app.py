@@ -1,3 +1,4 @@
+
 from flask import Flask, request, redirect
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -7,17 +8,14 @@ import os
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret123'
 
-# DATABASE
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.getcwd(), 'jobs.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# LOGIN
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 
-# MODELS
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True)
@@ -29,9 +27,7 @@ class Job(db.Model):
     location = db.Column(db.String(100))
     user_id = db.Column(db.Integer)
 
-# 🔥 RESET DATABASE (temporary fix)
 with app.app_context():
-    db.drop_all()
     db.create_all()
 
 @login_manager.user_loader
@@ -41,91 +37,12 @@ def load_user(user_id):
 # HOME
 @app.route("/")
 def home():
-    search = request.args.get("search", "").lower()
-    location = request.args.get("location", "")
+    jobs = Job.query.all()
 
-    jobs = Job.query.order_by(Job.id.desc()).all()
-
-    html = """
-    <html>
-    <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Job Board Zambia</title>
-
-    <style>
-    body { font-family: Arial; background: #eef1f5; margin: 0; }
-
-    header {
-        background: #0d6efd;
-        color: white;
-        padding: 12px;
-        display: flex;
-        justify-content: space-between;
-    }
-
-    .container { padding: 15px; }
-
-    input, select, button {
-        width: 100%;
-        padding: 12px;
-        margin-top: 10px;
-        border-radius: 5px;
-        border: 1px solid #ccc;
-    }
-
-    button {
-        background: #198754;
-        color: white;
-        border: none;
-    }
-
-    .job {
-        background: white;
-        padding: 15px;
-        margin-top: 15px;
-        border-radius: 10px;
-    }
-    </style>
-
-    </head>
-    <body>
-
-    <header>
-        <div style="font-weight:bold;">🚚 Job Board Zambia</div>
-        <a href="/post" style="color:white;">Post Job</a>
-    </header>
-
-    <div class="container">
-
-    <h2>Find Jobs Across Zambia 🇿🇲</h2>
-    <p>Search and apply for jobs in Kitwe, Lusaka and beyond.</p>
-
-    <form method="get">
-        <input name="search" placeholder="Search job..." />
-        <select name="location">
-            <option value="">All Locations</option>
-            <option value="Kitwe">Kitwe</option>
-            <option value="Lusaka">Lusaka</option>
-        </select>
-        <button>Search</button>
-    </form>
-
-    <h2>Available Jobs</h2>
-    """
-
-    if not jobs:
-        html += "<p>No jobs posted yet. Be the first to post one!</p>"
-
+    html = "<h2>Jobs</h2>"
     for job in jobs:
-        if (search in job.title.lower()) and (location == "" or location == job.location):
-            html += f"""
-            <div class='job'>
-            <strong>{job.title}</strong><br>
-            📍 {job.location}
-            </div>
-            """
+        html += f"<p>{job.title} - {job.location}</p>"
 
-    html += "</div></body></html>"
     return html
 
 
@@ -133,19 +50,20 @@ def home():
 @app.route("/register", methods=["GET","POST"])
 def register():
     if request.method == "POST":
-        user = User(
-            username=request.form["username"],
-            password=generate_password_hash(request.form["password"])
-        )
+        username = request.form["username"]
+        password = generate_password_hash(request.form["password"])
+
+        user = User(username=username, password=password)
         db.session.add(user)
         db.session.commit()
-        return redirect("/login")
+
+        return "Registered successfully. Go to /login"
 
     return """
     <h2>Register</h2>
     <form method="post">
-    <input name="username" placeholder="Username">
-    <input name="password" placeholder="Password">
+    <input name="username">
+    <input name="password">
     <button>Register</button>
     </form>
     """
@@ -155,31 +73,28 @@ def register():
 @app.route("/login", methods=["GET","POST"])
 def login():
     if request.method == "POST":
-        user = User.query.filter_by(username=request.form["username"]).first()
-        if user and check_password_hash(user.password, request.form["password"]):
-            login_user(user)
-            return redirect("/")
+        username = request.form["username"]
+        password = request.form["password"]
+
+        user = User.query.filter_by(username=username).first()
+
+        if user:
+            if check_password_hash(user.password, password):
+                login_user(user)
+                return "Login successful"
+
         return "Invalid login"
 
     return """
     <h2>Login</h2>
     <form method="post">
-    <input name="username" placeholder="Username">
-    <input name="password" placeholder="Password">
+    <input name="username">
+    <input name="password">
     <button>Login</button>
     </form>
     """
 
 
-# LOGOUT
-@app.route("/logout")
-@login_required
-def logout():
-    logout_user()
-    return redirect("/")
-
-
-# POST JOB
 @app.route("/post", methods=["GET","POST"])
 @login_required
 def post():
@@ -196,13 +111,8 @@ def post():
     return """
     <h2>Post Job</h2>
     <form method="post">
-    <input name="title" placeholder="Job title">
-
-    <select name="location">
-        <option value="Kitwe">Kitwe</option>
-        <option value="Lusaka">Lusaka</option>
-    </select>
-
+    <input name="title">
+    <input name="location">
     <button>Post</button>
     </form>
     """
