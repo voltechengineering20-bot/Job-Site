@@ -1,238 +1,99 @@
-from flask import Flask, request, redirect
+
+    from flask import Flask, render_template, request, redirect, session, url_for
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
 import os
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'secret123'
 
-# DATABASE
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.getcwd(), 'jobs.db')
+# 🔐 Secret key (important)
+app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key")
+
+# 🗄️ Database config
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# LOGIN
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = "login"
-
-# MODELS
-class User(UserMixin, db.Model):
+# 👤 User model
+class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(100), unique=True)
-    password = db.Column(db.String(200))
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password = db.Column(db.String(200), nullable=False)
 
-class Job(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(200))
-    location = db.Column(db.String(100))
-    user_id = db.Column(db.Integer)
-
+# 🧱 Create database
 with app.app_context():
     db.create_all()
 
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
+# 🔒 Login required decorator
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
 
-
-# HOME (with search + filter)
-@app.route("/")
+# 🏠 Home
+@app.route('/')
 def home():
-    search = request.args.get("search", "").lower()
-    location = request.args.get("location", "")
+    return render_template('index.html')
 
-    jobs = Job.query.order_by(Job.id.desc()).all()
+# 📝 Register
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
 
-    html = """
-    <html>
-    <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Job Board Zambia</title>
+        # Validation
+        if len(password) < 6:
+            return "Password must be at least 6 characters"
 
-    <style>
-    body { font-family: Arial; background: #eef1f5; margin: 0; }
+        # Check existing user
+        if User.query.filter_by(email=email).first():
+            return "User already exists"
 
-    header {
-        background: #0d6efd;
-        color: white;
-        padding: 12px;
-        display: flex;
-        justify-content: space-between;
-    }
+        # Hash password
+        hashed_password = generate_password_hash(password)
 
-    .container { padding: 15px; }
+        new_user = User(email=email, password=hashed_password)
+        db.session.add(new_user)
+        db.session.commit()
 
-    .nav a {
-        color: white;
-        margin-left: 10px;
-        text-decoration: none;
-    }
+        return redirect(url_for('login'))
 
-    input, select, button {
-        width: 100%;
-        padding: 10px;
-        margin-top: 10px;
-        border-radius: 5px;
-    }
+    return render_template('register.html')
 
-    button {
-        background: #198754;
-        color: white;
-        border: none;
-    }
+# 🔑 Login
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
 
-    .job {
-        background: white;
-        padding: 15px;
-        margin-top: 15px;
-        border-radius: 10px;
-    }
-    </style>
-    </head>
+        user = User.query.filter_by(email=email).first()
 
-    <body>
+        if user and check_password_hash(user.password, password):
+            session['user_id'] = user.id
+            return redirect(url_for('dashboard'))
+        else:
+            return "Invalid email or password"
 
-    <header>
-        <div><strong>🚚 Job Board Zambia</strong></div>
-        <div class="nav">
-            <a href="/">Home</a>
-            <a href="/post">Post Job</a>
-            <a href="/dashboard">Dashboard</a>
-            <a href="/logout">Logout</a>
-        </div>
-    </header>
+    return render_template('login.html')
 
-    <div class="container">
-
-    <h2>Find Jobs</h2>
-
-    <form method="get">
-        <input name="search" placeholder="Search jobs..." />
-        <select name="location">
-            <option value="">All Locations</option>
-            <option value="Kitwe">Kitwe</option>
-            <option value="Lusaka">Lusaka</option>
-        </select>
-        <button>Search</button>
-    </form>
-
-    <h2>Available Jobs</h2>
-    """
-
-    found = False
-
-    for job in jobs:
-        if (search in job.title.lower()) and (location == "" or location == job.location):
-            found = True
-            html += f"""
-            <div class='job'>
-            <strong>{job.title}</strong><br>
-            📍 {job.location}
-            </div>
-            """
-
-    if not found:
-        html += "<p>No jobs found.</p>"
-
-    html += "</div></body></html>"
-    return html
-
-
-# DASHBOARD
-@app.route("/dashboard")
+# 📊 Dashboard (protected)
+@app.route('/dashboard')
 @login_required
 def dashboard():
-    jobs = Job.query.filter_by(user_id=current_user.id).all()
+    return render_template('dashboard.html')
 
-    html = "<h2>Your Jobs</h2><a href='/'>Home</a><br><br>"
-
-    if not jobs:
-        html += "<p>You haven't posted any jobs yet.</p>"
-
-    for job in jobs:
-        html += f"<p>{job.title} - {job.location}</p>"
-
-    return html
-
-
-# REGISTER
-@app.route("/register", methods=["GET","POST"])
-def register():
-    if request.method == "POST":
-        user = User(
-            username=request.form["username"],
-            password=generate_password_hash(request.form["password"])
-        )
-        db.session.add(user)
-        db.session.commit()
-        return redirect("/login")
-
-    return """
-    <h2>Register</h2>
-    <form method="post">
-    <input name="username" placeholder="Username">
-    <input name="password" placeholder="Password">
-    <button>Register</button>
-    </form>
-    """
-
-
-# LOGIN
-@app.route("/login", methods=["GET","POST"])
-def login():
-    if request.method == "POST":
-        user = User.query.filter_by(username=request.form["username"]).first()
-        if user and check_password_hash(user.password, request.form["password"]):
-            login_user(user)
-            return redirect("/")
-        return "Invalid login"
-
-    return """
-    <h2>Login</h2>
-    <form method="post">
-    <input name="username" placeholder="Username">
-    <input name="password" placeholder="Password">
-    <button>Login</button>
-    </form>
-    """
-
-
-# LOGOUT
-@app.route("/logout")
-@login_required
+# 🚪 Logout
+@app.route('/logout')
 def logout():
-    logout_user()
-    return redirect("/")
+    session.clear()
+    return redirect(url_for('login'))
 
-
-# POST JOB
-@app.route("/post", methods=["GET","POST"])
-@login_required
-def post():
-    if request.method == "POST":
-        job = Job(
-            title=request.form["title"],
-            location=request.form["location"],
-            user_id=current_user.id
-        )
-        db.session.add(job)
-        db.session.commit()
-        return redirect("/")
-
-    return """
-    <h2>Post Job</h2>
-    <form method="post">
-    <input name="title" placeholder="Job title">
-    <select name="location">
-        <option value="Kitwe">Kitwe</option>
-        <option value="Lusaka">Lusaka</option>
-    </select>
-    <button>Post</button>
-    </form>
-    """
-
-
-if __name__ == "__main__":
-    app.run()
+# ▶ Run
+if __name__ == '__main__':
+    app.run(debug=True)
