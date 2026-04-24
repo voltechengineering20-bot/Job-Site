@@ -130,7 +130,10 @@ def home():
     </header>
 
     <div class="container">
-
+<div style="background:white; padding:20px; border-radius:12px; margin-bottom:15px;">
+    <h2>Find Jobs Across Zambia 🇿🇲</h2>
+    <p>Connect with top employers in Kitwe, Lusaka and beyond.</p>
+</div>
     <h2>Find Jobs</h2>
 
     <form method="get">
