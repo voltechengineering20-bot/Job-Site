@@ -4,6 +4,7 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 
+# APP
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret123'
 
@@ -12,7 +13,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.getcwd(),
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# LOGIN
+# LOGIN SETUP
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
@@ -37,7 +38,7 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
-# HOME (with search + filter)
+# HOME (SEARCH + UI)
 @app.route("/")
 def home():
     search = request.args.get("search", "").lower()
@@ -62,13 +63,13 @@ def home():
         justify-content: space-between;
     }
 
-    .container { padding: 15px; }
-
     .nav a {
         color: white;
         margin-left: 10px;
         text-decoration: none;
     }
+
+    .container { padding: 15px; }
 
     input, select, button {
         width: 100%;
@@ -98,6 +99,8 @@ def home():
         <div><strong>🚚 Job Board Zambia</strong></div>
         <div class="nav">
             <a href="/">Home</a>
+            <a href="/register">Register</a>
+            <a href="/login">Login</a>
             <a href="/post">Post Job</a>
             <a href="/dashboard">Dashboard</a>
             <a href="/logout">Logout</a>
@@ -137,23 +140,6 @@ def home():
         html += "<p>No jobs found.</p>"
 
     html += "</div></body></html>"
-    return html
-
-
-# DASHBOARD
-@app.route("/dashboard")
-@login_required
-def dashboard():
-    jobs = Job.query.filter_by(user_id=current_user.id).all()
-
-    html = "<h2>Your Jobs</h2><a href='/'>Home</a><br><br>"
-
-    if not jobs:
-        html += "<p>You haven't posted any jobs yet.</p>"
-
-    for job in jobs:
-        html += f"<p>{job.title} - {job.location}</p>"
-
     return html
 
 
@@ -234,6 +220,22 @@ def post():
     """
 
 
+# DASHBOARD
+@app.route("/dashboard")
+@login_required
+def dashboard():
+    jobs = Job.query.filter_by(user_id=current_user.id).all()
+
+    html = "<h2>Your Jobs</h2><a href='/'>Home</a><br><br>"
+
+    if not jobs:
+        html += "<p>You haven't posted any jobs yet.</p>"
+
+    for job in jobs:
+        html += f"<p>{job.title} - {job.location}</p>"
+
+    return html
+
+
 if __name__ == "__main__":
     app.run()
-    
